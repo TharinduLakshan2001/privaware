@@ -91,3 +91,7 @@ pyrightconfig.json
 # OS files
 .DS_Store
 Thumbs.db
+
+# Environment files
+.env        
+!.env.example 
