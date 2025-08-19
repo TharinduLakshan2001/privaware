@@ -1,0 +1,49 @@
+{
+  "project": {
+    "name": "PrivAware",
+    "version": "0.1.0",
+    "description": "Linux Privacy & Security Hardening CLI Tool"
+  },
+  "alerts": {
+    "enable_email": true,
+    "email_from": "tharinduhero500@gmail.com",
+    "email_to": "tharinduhero007@gmail.com",
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "rules": {
+      "failed_login": {
+        "enabled": true,
+        "description": "Send an alert when a user fails to log in"
+      },
+      "successful_login": {
+        "enabled": true,
+        "description": "Send an alert when a user logs in successfully"
+      },
+      "root_access": {
+        "enabled": true,
+        "description": "Send an alert when a user escalates privileges to root"
+      },
+      "file_permission_change": {
+        "enabled": true,
+        "description": "Send an alert when file permissions are changed"
+      },
+      "service_failure": {
+        "enabled": true,
+        "description": "Send an alert when a critical Linux service goes down"
+      }
+    }
+  },
+  "monitor": {
+    "check_interval": 60,
+    "services": ["sshd", "dnsmasq", "nginx"]
+  },
+  "logging": {
+    "log_file": "logs/privaware.log",
+    "log_level": "INFO"
+  },
+  "remote_control": {
+    "enabled": false,
+    "signal_channel": "email",
+    "accepted_senders": ["tharinduhero007@gmail.com"]
+  }
+}
