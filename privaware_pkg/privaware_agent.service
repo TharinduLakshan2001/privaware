@@ -1,0 +1,13 @@
+[Unit]
+Description=PrivAware Security Agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/kali/Project/privaware
+ExecStart=/home/kali/Project/privaware/venv/bin/python -m privaware_pkg.privaware --logs
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

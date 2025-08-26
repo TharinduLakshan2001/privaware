@@ -1,0 +1,2 @@
+[console_scripts]
+privaware = privaware_pkg.privaware:main

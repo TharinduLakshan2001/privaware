@@ -1,100 +1,49 @@
+
+"""
+Alerts module: Handles sending alerts based on triggered rules.
+"""
 import os
 import smtplib
-import json
-import logging
-from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 
-# --------------------------
-# Load environment variables
-# --------------------------
-dotenv_path = os.path.join(os.path.dirname(__file__), "..", ".env")
-load_dotenv(dotenv_path)
+# Load environment variables from .env
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-EMAIL_USER = os.getenv("EMAIL_USERNAME")  # Gmail address
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # Gmail App Password
-OWNER_EMAIL = os.getenv("OWNER_EMAIL")  # Recipient
+EMAIL_FROM = os.getenv('EMAIL_USERNAME')
+EMAIL_PASS = os.getenv('EMAIL_PASSWORD')
+EMAIL_TO = os.getenv('OWNER_EMAIL')
 
-# --------------------------
-# Load settings.json
-# --------------------------
-SETTINGS_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "settings.json")
-with open(SETTINGS_PATH, "r") as f:
-    settings = json.load(f)
+class AlertSender:
+	def __init__(self, email_from=EMAIL_FROM, email_pass=EMAIL_PASS, email_to=EMAIL_TO):
+		self.email_from = email_from
+		self.email_pass = email_pass
+		self.email_to = email_to
 
-# --------------------------
-# Logging setup
-# --------------------------
-log_file = settings["logging"].get("log_file", "privaware.log")
-log_level = getattr(logging, settings["logging"].get("log_level", "INFO").upper(), logging.INFO)
-logging.basicConfig(
-    filename=log_file,
-    level=log_level,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
+	def send_alert(self, subject, message):
+		if not all([self.email_from, self.email_pass, self.email_to]):
+			print("[ALERT] Email credentials not set. Cannot send alert.")
+			return False
+		try:
+			msg = MIMEMultipart()
+			msg['From'] = self.email_from
+			msg['To'] = self.email_to
+			msg['Subject'] = subject
+			msg.attach(MIMEText(message, 'plain'))
 
-# --------------------------
-# Email sending function
-# --------------------------
-def send_email_alert(subject: str, message: str, dry_run: bool = False) -> bool:
-    """
-    Send an email alert if enabled in settings.
-    Set dry_run=True to skip real sending (useful for pytest).
-    """
-    if not settings["alerts"].get("enable_email", False):
-        logging.info("Email alerts are disabled. Skipping.")
-        return False
+			with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+				server.login(self.email_from, self.email_pass)
+				server.sendmail(self.email_from, self.email_to, msg.as_string())
+			print(f"[ALERT] Email sent to {self.email_to}")
+			return True
+		except Exception as e:
+			print(f"[ALERT] Failed to send email: {e}")
+			return False
 
-    try:
-        sender = EMAIL_USER
-        recipient = OWNER_EMAIL
+def send_test_alert():
+	sender = AlertSender()
+	return sender.send_alert("PrivAware Test Alert", "This is a test alert from PrivAware.")
 
-        msg = MIMEMultipart()
-        msg["From"] = sender
-        msg["To"] = recipient
-        msg["Subject"] = subject
-        msg.attach(MIMEText(message, "plain"))
-
-        if dry_run:
-            logging.info(f"[DRY RUN] Email prepared for {recipient}: {subject}")
-            return True
-
-        # Connect and send via Gmail SMTP
-        server = smtplib.SMTP(settings["alerts"]["smtp_server"], settings["alerts"]["smtp_port"])
-        server.starttls()
-        server.login(EMAIL_USER, EMAIL_PASSWORD)
-        server.sendmail(sender, recipient, msg.as_string())
-        server.quit()
-
-        logging.info(f"Alert sent to {recipient}: {subject}")
-        return True
-
-    except Exception as e:
-        logging.error(f"Failed to send alert: {e}")
-        return False
-
-# --------------------------
-# Trigger alerts by event type
-# --------------------------
-def trigger_alert(event_type: str, details: str = "", dry_run: bool = False):
-    """
-    Trigger an alert based on event_type.
-    Reads rules from settings.json.
-    """
-    rules = settings["alerts"].get("rules", {})
-
-    if event_type not in rules:
-        logging.warning(f"Unknown event type: {event_type}")
-        return
-
-    if not rules[event_type].get("enabled", False):
-        logging.info(f"Alert for '{event_type}' is disabled.")
-        return
-
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    subject = f"[PrivAware] Security Alert - {event_type.replace('_', ' ').title()}"
-    message = f"Event: {event_type}\nTime: {now}\nDetails: {details}"
-
-    send_email_alert(subject, message, dry_run=dry_run)
+if __name__ == "__main__":
+	send_test_alert()

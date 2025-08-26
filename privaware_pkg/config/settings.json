@@ -1,49 +1,88 @@
 {
   "project": {
     "name": "PrivAware",
-    "version": "0.1.0",
-    "description": "Linux Privacy & Security Hardening CLI Tool"
-  },
-  "alerts": {
-    "enable_email": true,
-    "email_from": "tharinduhero500@gmail.com",
-    "email_to": "tharinduhero007@gmail.com",
-    "smtp_server": "smtp.gmail.com",
-    "smtp_port": 587,
-    "rules": {
-      "failed_login": {
-        "enabled": true,
-        "description": "Send an alert when a user fails to log in"
-      },
-      "successful_login": {
-        "enabled": true,
-        "description": "Send an alert when a user logs in successfully"
-      },
-      "root_access": {
-        "enabled": true,
-        "description": "Send an alert when a user escalates privileges to root"
-      },
-      "file_permission_change": {
-        "enabled": true,
-        "description": "Send an alert when file permissions are changed"
-      },
-      "service_failure": {
-        "enabled": true,
-        "description": "Send an alert when a critical Linux service goes down"
-      }
-    }
-  },
-  "monitor": {
-    "check_interval": 60,
-    "services": ["sshd", "dnsmasq", "nginx"]
+    "version": "1.0.0",
+    "description": "Linux privacy and security auditing and monitoring tool"
   },
   "logging": {
-    "log_file": "logs/privaware.log",
-    "log_level": "INFO"
+    "level": "INFO",
+    "log_file": "privaware.log"
+  },
+  "modules": {
+    "audit": true,
+    "alerts": true,
+    "filewatch": true,
+    "log_monitor": true,
+    "servicecheck": true,
+    "monitor": true,
+    "remote_control": false
+  },
+  "audit": {
+    "checks": [
+      "world_readable_secrets",
+      "weak_ssh_ciphers",
+      "dns_leaks",
+      "missing_firewall_rules",
+      "integrity_checks",
+      "sudoers_surprises",
+      "cron_at_jobs",
+      "sysctl_hardening",
+      "user_accounts",
+      "password_policy",
+      "ssh_hardening",
+      "pam_misconfigurations",
+      "dns_consistency",
+      "open_ports_services",
+      "service_versions",
+      "unencrypted_services",
+      "ntp_chrony"
+    ]
+  },
+  "alerts": {
+    "rules": [
+      "failed_login_attempts",
+      "successful_login",
+      "root_access",
+      "file_permission_changes",
+      "service_failures"
+    ],
+    "email": {
+      "from": "",
+      "to": ""
+    }
+  },
+  "filewatch": {
+    "paths": [
+      "/etc/passwd",
+      "/etc/shadow",
+      "~/.ssh/authorized_keys"
+    ]
+  },
+  "log_monitor": {
+    "log_files": [
+      "/var/log/auth.log",
+      "/var/log/syslog"
+    ],
+    "suspicious_activity": [
+      "failed_logins",
+      "brute_force_attempts",
+      "sudo_abuse"
+    ]
+  },
+  "servicecheck": {
+    "services": [
+      "sshd",
+      "dnsmasq",
+      "nginx"
+    ]
+  },
+  "monitor": {
+    "cpu_threshold": 90,
+    "memory_threshold": 90,
+    "disk_threshold": 90
   },
   "remote_control": {
     "enabled": false,
-    "signal_channel": "email",
-    "accepted_senders": ["tharinduhero007@gmail.com"]
+    "accepted_senders": []
   }
 }

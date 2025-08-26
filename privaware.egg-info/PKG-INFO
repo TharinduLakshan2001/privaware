@@ -1,0 +1,26 @@
+Metadata-Version: 2.4
+Name: privaware
+Version: 1.0.0
+Summary: Linux privacy and security auditing and monitoring tool
+Author: Security Researcher
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Security
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+Requires-Dist: psutil>=7.0.0
+Requires-Dist: watchdog>=6.0.0
+Requires-Dist: rich>=14.1.0
+Requires-Dist: python-dotenv>=1.1.1
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+PrivAware - Linux Security Toolkit
