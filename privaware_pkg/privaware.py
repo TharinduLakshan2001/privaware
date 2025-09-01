@@ -351,6 +351,15 @@ def main():
     parser.add_argument('--realtime-monitor', action='store_true', help='Real-time system monitoring')
     parser.add_argument('--monitor-interval', type=int, default=5, help='Monitoring interval in seconds')
 
+    # Add the new config check arguments
+    parser.add_argument('--check-config', action='store_true', help='Run privacy configuration monitoring')
+    parser.add_argument('--interval', type=int, default=30, help='Check interval in seconds (default: 30)')
+    parser.add_argument('--snapshot-dir', default='~/.privaware/snapshots', help='Snapshot directory')
+    parser.add_argument('--once', action='store_true', help='Run single check instead of continuous monitoring')
+    parser.add_argument('--snapshot-list', action='store_true', help='List available snapshots')
+    parser.add_argument('--snapshot-show', help='Show specific snapshot details')
+
+    # Parse arguments FIRST - This must come before using args
     args = parser.parse_args()
 
     check_and_install_requirements()
@@ -363,16 +372,33 @@ def main():
         prompt_background_service()
         return
 
-    # Run selected modules - UPDATE THIS SECTION:
+    # Run selected modules - Make sure args is defined before using it
     if args.audit:
         run_audit()
     
-    # Handle both monitor and realtime-monitor
     if args.monitor or args.realtime_monitor:
         if args.realtime_monitor:
             run_monitor(realtime=True, interval=args.monitor_interval)
         else:
             run_monitor()
+    
+    
+    # Add the new config check functionality
+    if args.check_config:
+        from core.config_checker import run_config_check
+        run_config_check(
+            snapshot_dir=args.snapshot_dir,
+            interval=args.interval,
+            once=args.once
+        )
+    
+    if args.snapshot_list:
+        from core.config_checker import list_snapshots
+        list_snapshots(snapshot_dir=args.snapshot_dir)
+
+    if args.snapshot_show:
+        from core.config_checker import show_snapshot
+        show_snapshot(args.snapshot_show, snapshot_dir=args.snapshot_dir)
         
     if args.logs:
         run_log_monitor()
@@ -389,9 +415,10 @@ def main():
     if args.test_alert:
         run_test_alert()
         
-    # Update this condition too:
+    # Update this condition to include new arguments:
     if not any([args.audit, args.monitor, args.realtime_monitor, args.logs, args.filewatch, 
-                args.realtime_watch, args.servicecheck, args.test_alert]):
+                args.realtime_watch, args.servicecheck, args.test_alert, args.check_config,
+                args.snapshot_list, args.snapshot_show]):
         parser.print_help()
 
 if __name__ == "__main__":
