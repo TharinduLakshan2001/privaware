@@ -4,7 +4,8 @@ Check full-disk encryption.
 This check verifies if the root filesystem is encrypted using LUKS.
 """
 
-# Import the necessary classes and helpers from the common models file
+import os
+from pathlib import Path
 from ..config_models import ConfigCheck, run_command_simple
 
 def check_disk_encryption() -> ConfigCheck:
@@ -18,9 +19,14 @@ def check_disk_encryption() -> ConfigCheck:
         ConfigCheck: Result of the check including status, details, and remediation info.
     """
     # Create the check object instance
-    # The check_id should match the one used in the old monolithic file ("disk_encryption")
-    # and the description/severity should also match.
     check = ConfigCheck("disk_encryption", "Full-disk encryption", "CRITICAL")
+
+    # Check if this check has been acknowledged
+    ack_file = Path.home() / ".privaware" / "acknowledged" / "disk_encryption"
+    if ack_file.exists():
+        check.status = "PASS"
+        check.details = "Full-disk encryption acknowledged by user"
+        return check
 
     # --- Logic adapted from the KB method ---
     # Check for encrypted root filesystem using lsblk
@@ -35,12 +41,11 @@ def check_disk_encryption() -> ConfigCheck:
             # No LUKS encrypted filesystems found
             check.status = "FAIL"
             check.details = "No encrypted filesystems found"
-            # Disk encryption typically requires reinstallation to implement.
-            # The remediation is a descriptive message.
-            # FIXED: Provide a valid shell command (using echo) instead of plain text.
+            # Disk encryption typically requires reinstallation to implement,
+            # so the remediation is a descriptive message rather than a command.
             check.remediation_needed = True
             check.remediation_command = (
-                "echo '[ACTION REQUIRED] Full disk encryption requires system reinstallation "
+                "echo 'ACTION REQUIRED: Full disk encryption requires system reinstallation "
                 "OR configuring an encrypted swapfile/partition if full reinstallation is not feasible.'"
             )
     else:

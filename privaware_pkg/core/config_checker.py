@@ -33,6 +33,9 @@ class ConfigChecker:
         self.profile = profile
         self.send_alerts = send_alerts
         self.snapshot_dir.mkdir(parents=True, exist_ok=True)
+        # Ensure the 'acknowledged' directory exists
+        self.ack_dir = self.snapshot_dir.parent / "acknowledged"
+        self.ack_dir.mkdir(parents=True, exist_ok=True)
         self.alert_sender = AlertSender() if send_alerts and AlertSender else None
         # Dynamically discover and load check functions
         self.check_functions = self._discover_check_functions()
@@ -84,6 +87,23 @@ class ConfigChecker:
 
     # --- Remove all individual check_* methods (check_firewall, check_dns_resolver, etc.) ---
     # They are now in separate files in core/checks/.
+
+    def _is_check_acknowledged(self, check_id: str) -> bool:
+        """
+        Internal helper to check if a specific check has been acknowledged.
+        Looks for a marker file.
+        """
+        ack_marker_path = self.ack_dir / check_id
+        return ack_marker_path.exists()
+
+    def _acknowledge_check(self, check_id: str):
+        """
+        Internal helper to mark a specific check as acknowledged.
+        Creates a marker file.
+        """
+        ack_marker_path = self.ack_dir / check_id
+        ack_marker_path.touch() # Create an empty file as a marker
+        print(f"[ConfigChecker] Check '{check_id}' has been acknowledged.")
 
     def _send_system_alert(self, failed_checks: List[ConfigCheck]):
         """Send system desktop notification"""
@@ -142,7 +162,10 @@ class ConfigChecker:
 
     def _send_alerts(self, checks: List[ConfigCheck]):
         """Send both system and email alerts"""
-        failed_checks = [c for c in checks if c.status in ["FAIL", "WARN"]]
+        # Filter out acknowledged risks from alerts, as they are accepted
+        # You might want to send a different kind of alert for acknowledged risks
+        # but for now, we exclude them from the main failure alerts.
+        failed_checks = [c for c in checks if c.status in ["FAIL", "WARN"] and not c.acknowledged]
         if not failed_checks:
             return
         self._send_system_alert(failed_checks)
@@ -179,7 +202,19 @@ class ConfigChecker:
                 results.append(error_check)
                 print(f"[ConfigChecker] Error running check {check_func.__name__}: {e}")
 
+        # --- NEW: Check for acknowledged status AFTER running checks ---
+        for check in results:
+            # Only check for acknowledgement if the check failed or warned
+            # and it hasn't been acknowledged already by the check itself
+            if check.status in ["FAIL", "WARN"] and not check.acknowledged:
+                if self._is_check_acknowledged(check.check_id):
+                    check.acknowledged = True
+                    # Optionally modify details to indicate it's acknowledged
+                    # This makes it clear in the UI report
+                    check.details += " (Risk acknowledged by user)"
+
         # --- Send alerts for failed checks ---
+        # The _send_alerts method now filters out acknowledged risks
         self._send_alerts(results)
         return results
 
@@ -295,14 +330,22 @@ def run_config_check(snapshot_dir="~/.privaware/snapshots", interval=30, once=Fa
                 if fixed_checks:
                     console.print(f"[green]✅ Attempted to fix {len(fixed_checks)} issues[/green]")
 
-        # --- Rest of run_config_check logic for displaying results ---
-        # (This part stays mostly the same, just processing the 'checks' list)
+        # Compare with previous
+        previous = checker.load_latest_snapshot()
+        changes = checker.compare_snapshots(checks, previous)
+
         # Categorize checks by severity
-        critical_issues = [c for c in checks if c.severity == "CRITICAL" and c.status in ["FAIL", "WARN"]]
-        high_issues = [c for c in checks if c.severity == "HIGH" and c.status in ["FAIL", "WARN"]]
-        medium_issues = [c for c in checks if c.severity == "MEDIUM" and c.status in ["FAIL", "WARN"]]
-        low_issues = [c for c in checks if c.severity == "LOW" and c.status in ["FAIL", "WARN"]]
-        passed_checks = [c for c in checks if c.status == "PASS"]
+        # --- NEW: Separate acknowledged risks ---
+        acknowledged_risks = [c for c in checks if c.acknowledged]
+        # --- Filter out acknowledged risks from main issue lists for display ---
+        critical_issues = [c for c in checks if c.severity == "CRITICAL" and c.status in ["FAIL", "WARN"] and not c.acknowledged]
+        high_issues = [c for c in checks if c.severity == "HIGH" and c.status in ["FAIL", "WARN"] and not c.acknowledged]
+        medium_issues = [c for c in checks if c.severity == "MEDIUM" and c.status in ["FAIL", "WARN"] and not c.acknowledged]
+        low_issues = [c for c in checks if c.severity == "LOW" and c.status in ["FAIL", "WARN"] and not c.acknowledged]
+        
+        # Include acknowledged risks in passed/unknown/error counts for overall stats,
+        # or treat them separately. Let's treat them as "handled" for the main score.
+        passed_checks = [c for c in checks if c.status == "PASS"] # This can include acknowledged passes
         # Separate actual UNKNOWN results from ERROR results (those with check_id == "error")
         actual_unknown_checks = [c for c in checks if c.status == "UNKNOWN" and c.check_id != "error"]
         error_checks = [c for c in checks if c.check_id == "error"]
@@ -311,16 +354,27 @@ def run_config_check(snapshot_dir="~/.privaware/snapshots", interval=30, once=Fa
         # Display summary
         console.print(Panel.fit("[bold]🛡️  PRIVAWARE SECURITY SCAN RESULTS[/bold]", border_style="blue"))
 
-        # Security Score (exclude errors)
+        # Security Score (exclude errors, optionally exclude acknowledged risks from penalty)
+        # Option 1: Score based only on non-error, non-acknowledged checks
+        # non_ack_non_error_checks = [c for c in checks if c.check_id != "error" and not c.acknowledged]
+        # passed_non_ack_count = len([c for c in non_ack_non_error_checks if c.status == "PASS"])
+        # total_non_ack_checks = len(non_ack_non_error_checks)
+        # security_score = int((passed_non_ack_count / total_non_ack_checks) * 100) if total_non_ack_checks > 0 else 0
+        
+        # Option 2: Simpler score, just based on all non-error checks
         non_error_checks = [c for c in checks if c.check_id != "error"]
-        total_checks = len(non_error_checks)
         passed_count = len([c for c in non_error_checks if c.status == "PASS"])
+        total_checks = len(non_error_checks)
         security_score = int((passed_count / total_checks) * 100) if total_checks > 0 else 0
+        
         score_color = "red" if security_score < 50 else "yellow" if security_score < 80 else "green"
         console.print(f"[bold]Security Score: [{score_color}]{security_score}%[/{score_color}][/bold]")
         console.print(f"Passed: [green]{passed_count}[/green] | Total: {total_checks}")
+        if acknowledged_risks:
+             console.print(f"Acknowledged Risks: [bold #808080]{len(acknowledged_risks)}[/bold #808080]") # Hex color for grey
 
         # --- Display categorized results (similar logic for each category) ---
+        # Critical/High Issues (Non-Acknowledged)
         if critical_issues or high_issues:
             console.print("\n[bold red]🚨 CRITICAL/HIGH RISK ISSUES[/bold red]")
             console.print("[red]These issues require immediate attention![/red]")
@@ -333,6 +387,7 @@ def run_config_check(snapshot_dir="~/.privaware/snapshots", interval=30, once=Fa
                 table.add_row(issue.description, f"{status_icon} {issue.status}", issue.details[:80] + "..." if len(issue.details) > 80 else issue.details)
             console.print(table)
 
+        # Medium Issues (Non-Acknowledged)
         if medium_issues:
             console.print("\n[bold yellow]⚠️  MEDIUM RISK ISSUES[/bold yellow]")
             table = Table(box=box.ROUNDED, show_header=True, header_style="bold yellow")
@@ -344,6 +399,7 @@ def run_config_check(snapshot_dir="~/.privaware/snapshots", interval=30, once=Fa
                 table.add_row(issue.description, f"{status_icon} {issue.status}", issue.details[:80] + "..." if len(issue.details) > 80 else issue.details)
             console.print(table)
 
+        # Low Issues (Non-Acknowledged)
         if low_issues:
             console.print("\n[bold blue]ℹ️  LOW RISK ISSUES[/bold blue]")
             table = Table(box=box.ROUNDED, show_header=True, header_style="bold blue")
@@ -365,9 +421,29 @@ def run_config_check(snapshot_dir="~/.privaware/snapshots", interval=30, once=Fa
                 table.add_row(f"✓ {check.check_id}", check.description)
             console.print(table)
 
+        # --- NEW: Show acknowledged risks ---
+        if acknowledged_risks:
+            console.print(f"\n[bold #808080]⚠️  {len(acknowledged_risks)} Acknowledged Risks:[/bold #808080]") # Using hex color for grey
+            table = Table(box=box.ROUNDED, show_header=True, header_style="bold #808080") # Using hex color
+            table.add_column("Acknowledged Risk", style="#808080") # Using hex color
+            table.add_column("Description", style="white")
+            table.add_column("Status", style="yellow")
+            table.add_column("Details", style="white")
+            for risk in acknowledged_risks:
+                status_icon = "❌" if risk.status == "FAIL" else "⚠️"
+                # Truncate details if too long, but indicate it's acknowledged
+                details_display = risk.details[:80] + "..." if len(risk.details) > 80 else risk.details
+                table.add_row(
+                    f"✓ {risk.check_id}", # Tick mark to indicate it was checked/processed
+                    risk.description,
+                    f"{status_icon} {risk.status} (ACK)",
+                    details_display
+                )
+            console.print(table)
+
         # Show unknown checks in a table
         if actual_unknown_checks:
-            console.print(f"\n[bold #808080]❓ {len(actual_unknown_checks)} checks unavailable:[/bold #808080]") # Using hex color
+            console.print(f"\n[bold #808080]❓ {len(actual_unknown_checks)} checks unavailable:[/bold #808080]") # Using hex color instead of "gray"
             table = Table(box=box.SIMPLE, show_header=True, header_style="bold #808080") # Using hex color
             table.add_column("Unavailable Check", style="#808080") # Using hex color
             table.add_column("Description", style="white")
@@ -388,22 +464,16 @@ def run_config_check(snapshot_dir="~/.privaware/snapshots", interval=30, once=Fa
             console.print(table)
 
 
-        # Show changes (assuming checker.load_latest_snapshot() and compare_snapshots work)
-        try:
-             previous = checker.load_latest_snapshot()
-             changes = checker.compare_snapshots(checks, previous)
-
-             if changes['new_failures'] or changes['resolved_issues']:
-                 console.print("\n[bold magenta]🔄 Recent Changes:[/bold magenta]")
-                 if changes['new_failures']:
-                     console.print(f"   [red]New issues:[/red] {', '.join(changes['new_failures'])}")
-                 if changes['resolved_issues']:
-                     console.print(f"   [green]Fixed issues:[/green] {', '.join(changes['resolved_issues'])}")
-        except Exception as e:
-             console.print(f"\n[yellow]⚠️  Could not compare snapshots: {e}[/yellow]")
-
+        # Show changes
+        if changes['new_failures'] or changes['resolved_issues']:
+            console.print("\n[bold magenta]🔄 Recent Changes:[/bold magenta]")
+            if changes['new_failures']:
+                console.print(f"   [red]New issues:[/red] {', '.join(changes['new_failures'])}")
+            if changes['resolved_issues']:
+                console.print(f"   [green]Fixed issues:[/green] {', '.join(changes['resolved_issues'])}")
 
         # Recommendations
+        # Only count non-acknowledged issues for recommendations
         total_issues = len(critical_issues) + len(high_issues) + len(medium_issues) + len(low_issues)
         if total_issues > 0:
             console.print(f"\n[bold]💡 Quick Recommendations:[/bold]")
@@ -412,6 +482,10 @@ def run_config_check(snapshot_dir="~/.privaware/snapshots", interval=30, once=Fa
             if high_issues:
                 console.print("   🟠 Fix high-risk issues to improve security posture")
             console.print(f"   🛠️  Run 'privaware --help' to see remediation options")
+        elif acknowledged_risks:
+             # If all issues are acknowledged, give a different message
+             console.print(f"\n[bold]💡 Status:[/bold]")
+             console.print("   [bold #808080]All identified risks have been acknowledged.[/bold #808080] Review periodically.")
 
         if once:
             break

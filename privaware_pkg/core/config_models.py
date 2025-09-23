@@ -15,8 +15,11 @@ class ConfigCheck:
         self.remediation_attempted = False
         self.remediation_result = ""
         self.remediation_command = ""  # Store the command to fix the issue
+        # --- NEW ATTRIBUTE ---
+        self.acknowledged = False  # New attribute for acknowledged risks
 
     def to_dict(self):
+        # --- INCLUDE NEW ATTRIBUTE IN SERIALIZATION ---
         return {
             'check_id': self.check_id,
             'description': self.description,
@@ -27,6 +30,8 @@ class ConfigCheck:
             'remediation_attempted': self.remediation_attempted,
             'remediation_result': self.remediation_result,
             'remediation_command': self.remediation_command,
+            # --- INCLUDE NEW ATTRIBUTE IN SERIALIZATION ---
+            'acknowledged': self.acknowledged,
             'timestamp': datetime.now().isoformat()
         }
 
