@@ -337,29 +337,74 @@ def run_test_alert():
 def main():
     parser = argparse.ArgumentParser(
         description="PrivAware CLI - Linux Privacy & Security Toolkit",
-        formatter_class=argparse.RawTextHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  privaware --audit                    # Run system security audit
+  privaware --monitor                  # Check system health metrics
+  privaware --realtime-monitor         # Real-time system monitoring
+  privaware --check-config             # Privacy configuration monitoring
+  privaware --filewatch                # Monitor sensitive file changes
+  privaware --realtime-watch           # Real-time file system monitoring
+  privaware --logs                     # Analyze system logs for threats
+  privaware --servicecheck             # Check critical service status
+  privaware --test-alert               # Send test notification
+  privaware --snapshot-list            # List configuration snapshots
+  privaware --snapshot-show latest     # Show latest snapshot
+
+Monitoring:
+  --monitor --realtime-monitor         # System health monitoring
+  --check-config --once                # One-time privacy check
+  --check-config --interval 60         # Check every minute
+"""
     )
-    parser.add_argument('--setup', action='store_true', help='Run initial setup and configuration')
-    parser.add_argument('--audit', action='store_true', help='Run system audit checks')
-    parser.add_argument('--logs', action='store_true', help='Parse logs for suspicious activity')
-    parser.add_argument('--filewatch', action='store_true', help='Monitor sensitive files for changes')
-    parser.add_argument('--realtime-watch', action='store_true', help='Real-time file system monitoring with alerts')
-    parser.add_argument('--servicecheck', action='store_true', help='Check status of critical services')
-    parser.add_argument('--test-alert', action='store_true', help='Send a test alert email')
+    
+    # Setup and Testing
+    setup_group = parser.add_argument_group('Setup & Testing')
+    setup_group.add_argument('--setup', action='store_true', help='Run initial setup and configuration')
+    setup_group.add_argument('--test-alert', action='store_true', help='Send a test alert notification')
+    
+    # System Monitoring
+    monitor_group = parser.add_argument_group('System Monitoring')
+    monitor_group.add_argument('--monitor', action='store_true', help='Check current system health (CPU, memory, disk)')
+    monitor_group.add_argument('--realtime-monitor', action='store_true', help='Real-time system health monitoring')
+    monitor_group.add_argument('--monitor-interval', type=int, default=5, metavar='SECONDS',
+                              help='Monitoring interval in seconds (default: 5)')
+    
+    # Security Audit
+    audit_group = parser.add_argument_group('Security Audit')
+    audit_group.add_argument('--audit', action='store_true', help='Run comprehensive system security audit')
+    audit_group.add_argument('--servicecheck', action='store_true', help='Check status of critical services')
+    
+    # Privacy Configuration
+    privacy_group = parser.add_argument_group('Privacy Configuration')
+    privacy_group.add_argument('--check-config', action='store_true', help='Run privacy configuration monitoring')
+    privacy_group.add_argument('--interval', type=int, default=30, metavar='SECONDS',
+                              help='Check interval in seconds (default: 30)')
+    privacy_group.add_argument('--snapshot-dir', default='~/.privaware/snapshots', metavar='PATH',
+                              help='Snapshot storage directory')
+    privacy_group.add_argument('--once', action='store_true', help='Run single privacy check (no continuous monitoring)')
+    privacy_group.add_argument('--snapshot-list', action='store_true', help='List available configuration snapshots')
+    privacy_group.add_argument('--snapshot-show', metavar='SNAPSHOT',
+                              help='Show details of specific snapshot')
+    privacy_group.add_argument('--no-alerts', action='store_true', help='Disable email alerts')
+    privacy_group.add_argument('--auto-fix', action='store_true', help='Automatically fix security issues when detected')
+    
+    # File & Log Monitoring
+    file_group = parser.add_argument_group('File & Log Monitoring')
+    file_group.add_argument('--filewatch', action='store_true', help='Monitor sensitive files for changes')
+    file_group.add_argument('--realtime-watch', action='store_true', help='Real-time file system monitoring')
+    file_group.add_argument('--logs', action='store_true', help='Analyze system logs for suspicious activity')
+
+    # Device Monitoring (Add this section correctly)
+    device_group = parser.add_argument_group('Device Monitoring') # Define the group first
+    device_group.add_argument('--dmonitor', action='store_true', 
+                             help='Start real-time monitoring for USB/storage device connections')
+
+    
+    # Other
     parser.add_argument('-v', '--version', action='version', version='PrivAware 1.0.0')
-    parser.add_argument('--monitor', action='store_true', help='Check system health')
-    parser.add_argument('--realtime-monitor', action='store_true', help='Real-time system monitoring')
-    parser.add_argument('--monitor-interval', type=int, default=5, help='Monitoring interval in seconds')
 
-    # Add the new config check arguments
-    parser.add_argument('--check-config', action='store_true', help='Run privacy configuration monitoring')
-    parser.add_argument('--interval', type=int, default=30, help='Check interval in seconds (default: 30)')
-    parser.add_argument('--snapshot-dir', default='~/.privaware/snapshots', help='Snapshot directory')
-    parser.add_argument('--once', action='store_true', help='Run single check instead of continuous monitoring')
-    parser.add_argument('--snapshot-list', action='store_true', help='List available snapshots')
-    parser.add_argument('--snapshot-show', help='Show specific snapshot details')
-
-    # Parse arguments FIRST - This must come before using args
     args = parser.parse_args()
 
     check_and_install_requirements()
@@ -372,6 +417,39 @@ def main():
         prompt_background_service()
         return
 
+    # --- Place the --dmonitor execution logic AFTER argument parsing ---
+    # Add the new device connection monitoring functionality
+    if args.dmonitor: 
+        try:
+            from core.device_connection_monitor import DeviceConnectionMonitor
+            print("[PrivAware] Launching Device Connection Monitor (--dmonitor)...")
+            device_monitor = DeviceConnectionMonitor(send_alerts=True)
+            
+            if device_monitor.start_monitoring():
+                print("[PrivAware] Device Connection Monitor is now active.")
+                print("[PrivAware] Alerts will be sent for new USB device connections.")
+                print("[PrivAware] Press Ctrl+C to stop.")
+                try:
+                    # Keep the main thread alive while the monitor runs in the background
+                    while True:
+                        time.sleep(1)
+                except KeyboardInterrupt:
+                    print("\n[PrivAware] Received interrupt signal.")
+                finally:
+                    device_monitor.stop_monitoring()
+                    print("[PrivAware] Device Connection Monitor stopped.")
+            else:
+                print("[PrivAware] Failed to start Device Connection Monitor.")
+                
+        except ImportError as e:
+            print(f"[PrivAware] Error: {e}")
+            print("[PrivAware] Ensure 'pyudev' is installed: pip install pyudev")
+        except Exception as e:
+            print(f"[PrivAware] Unexpected error starting device monitor: {e}")
+        
+        # Exit after monitoring is stopped or failed to start
+        return # Add this return    
+
     # Run selected modules - Make sure args is defined before using it
     if args.audit:
         run_audit()
@@ -382,14 +460,15 @@ def main():
         else:
             run_monitor()
     
-    
     # Add the new config check functionality
     if args.check_config:
         from core.config_checker import run_config_check
         run_config_check(
             snapshot_dir=args.snapshot_dir,
             interval=args.interval,
-            once=args.once
+            once=args.once,
+            send_alerts=not args.no_alerts, # Use the --no-alerts flag
+            auto_fix=args.auto_fix
         )
     
     if args.snapshot_list:
@@ -415,10 +494,10 @@ def main():
     if args.test_alert:
         run_test_alert()
         
-    # Update this condition to include new arguments:
+    # Update this condition to include new arguments (add args.dmonitor):
     if not any([args.audit, args.monitor, args.realtime_monitor, args.logs, args.filewatch, 
                 args.realtime_watch, args.servicecheck, args.test_alert, args.check_config,
-                args.snapshot_list, args.snapshot_show]):
+                args.snapshot_list, args.snapshot_show, args.setup, args.dmonitor]): # Added args.dmonitor
         parser.print_help()
 
 if __name__ == "__main__":
