@@ -192,7 +192,7 @@ class ConfigChecker:
                 else:
                     print(f"Warning: Check function {check_func.__name__} did not return a valid ConfigCheck-like object.")
                     # Create an error check
-                    error_check = ConfigCheck("error", f"Check failed: {check_func.__name__} (invalid return type)", "UNKNOWN")
+                    error_check = ConfigCheck("error", f"Check failed: {check_func.__name__}", "UNKNOWN")
                     error_check.details = "Function did not return a ConfigCheck object."
                     results.append(error_check)
             except Exception as e:
@@ -493,3 +493,94 @@ def run_config_check(snapshot_dir="~/.privaware/snapshots", interval=30, once=Fa
         console.print(f"\n[yellow]⏳ Next check in {interval} seconds...[/yellow]")
         console.print("[dim]Press Ctrl+C to stop monitoring[/dim]")
         time.sleep(interval)
+
+
+# Add these functions to the end of your existing core/config_checker.py file
+
+def list_snapshots(snapshot_dir="~/.privaware/snapshots"):
+    """List available snapshots"""
+    from rich.console import Console
+    from rich.table import Table
+    console = Console()
+    
+    import os
+    from pathlib import Path
+    from datetime import datetime
+    
+    snapshot_dir = Path(os.path.expanduser(snapshot_dir))
+    snapshots = list(snapshot_dir.glob("snapshot_*.json"))
+    
+    if not snapshots:
+        console.print("[yellow]No snapshots found.[/yellow]")
+        return
+    
+    table = Table(title="[bold blue]Available Snapshots[/bold blue]")
+    table.add_column("Filename", style="cyan")
+    table.add_column("Date", style="green")
+    table.add_column("Size", style="yellow")
+    
+    for snapshot in sorted(snapshots, key=lambda x: x.stat().st_mtime, reverse=True):
+        stat = snapshot.stat()
+        table.add_row(
+            snapshot.name,
+            datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+            f"{stat.st_size} bytes"
+        )
+    
+    console.print(table)
+
+def show_snapshot(snapshot_name, snapshot_dir="~/.privaware/snapshots"):
+    """Show details of a specific snapshot"""
+    from rich.console import Console
+    from rich.table import Table
+    console = Console()
+    
+    import os
+    import json
+    from pathlib import Path
+    from datetime import datetime
+    
+    snapshot_dir = Path(os.path.expanduser(snapshot_dir))
+    
+    if snapshot_name == "latest":
+        snapshots = list(snapshot_dir.glob("snapshot_*.json"))
+        if not snapshots:
+            console.print("[red]No snapshots found.[/red]")
+            return
+        snapshot_path = max(snapshots, key=lambda x: x.stat().st_mtime)
+    else:
+        snapshot_path = snapshot_dir / f"snapshot_{snapshot_name}.json"
+        if not snapshot_path.exists():
+            console.print(f"[red]Snapshot {snapshot_name} not found.[/red]")
+            return
+    
+    with open(snapshot_path, 'r') as f:
+        data = json.load(f)
+    
+    console.print(f"[bold blue]Snapshot: {snapshot_path.name}[/bold blue]")
+    console.print(f"[green]Generated: {data['timestamp']}[/green]")
+    
+    # Count results
+    checks = data['checks']
+    passed = len([c for c in checks if c['status'] == 'PASS'])
+    failed = len([c for c in checks if c['status'] in ['FAIL', 'WARN']])
+    unknown = len([c for c in checks if c['status'] == 'UNKNOWN'])
+    
+    console.print(f"[bold]Summary:[/bold] {passed} passed, {failed} failed, {unknown} unknown")
+    
+    # Show failed checks
+    if failed > 0:
+        table = Table(title="[bold red]Failed Checks[/bold red]")
+        table.add_column("Check", style="cyan")
+        table.add_column("Severity", style="yellow")
+        table.add_column("Details", style="white")
+        
+        for check in checks:
+            if check['status'] in ['FAIL', 'WARN']:
+                table.add_row(
+                    check['description'],
+                    check['severity'],
+                    check['details'][:100] + "..." if len(check['details']) > 100 else check['details']
+                )
+        
+        console.print(table)

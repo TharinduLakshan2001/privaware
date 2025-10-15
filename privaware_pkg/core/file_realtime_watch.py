@@ -1,13 +1,14 @@
-# core/file_realtime_watch.py
+# core/file_realtime_watch.py - Smart Security-Focused Monitoring (keeping original class names)
 """
-File Real-Time Watcher: Intelligent file system monitoring with cool visualization.
-Tracks user CRUD operations while silently monitoring system activity.
+File Real-Time Watcher: Intelligent security-focused monitoring.
+Alerts only on user/security events, logs system activity discretely.
 """
 
 import os
 import time
 import pwd
 import psutil
+import subprocess
 from pathlib import Path
 from datetime import datetime
 from watchdog.observers import Observer
@@ -15,6 +16,7 @@ from watchdog.events import FileSystemEventHandler
 from collections import defaultdict, deque
 from typing import Dict
 import threading
+import sys
 
 # Try to import alert system
 try:
@@ -30,8 +32,8 @@ except (ImportError, ValueError):
                 print(f"[MOCK ALERT] Subject: {subject}")
                 print(f"[MOCK ALERT] Message: {message}")
 
-class CoolFileEventMonitor(FileSystemEventHandler):
-    """Enhanced file event handler with cool monitoring and intelligent alerts."""
+class CoolFileEventMonitor(FileSystemEventHandler):  # Keep original class name
+    """Smart file event handler with security-focused intelligent alerts."""
     
     def __init__(self, watch_paths=None, ignore_patterns=None):
         super().__init__()
@@ -40,20 +42,17 @@ class CoolFileEventMonitor(FileSystemEventHandler):
         self.ignore_patterns = ignore_patterns or []
         self.running = True
         
-        # Cool statistics tracking
-        self.stats = {
-            'created': 0,
-            'modified': 0,
-            'deleted': 0,
-            'accessed': 0,
-            'moved': 0
-        }
+        # Security-focused statistics tracking
+        self.security_events = 0
+        self.system_events = 0
         
-        # System activity tracking (no alerts)
-        self.system_activity = deque(maxlen=50)  # Last 50 system events
-        self.user_activity = deque(maxlen=20)    # Last 20 user events
+        # Security events queue (for alerts)
+        self.security_queue = deque(maxlen=20)
         
-        # Process classification
+        # System events queue (for discrete logging)
+        self.system_queue = deque(maxlen=50)
+        
+        # Process classification for security
         self.system_processes = {
             'systemd', 'dbus-daemon', 'cron', 'atd', 'rsyslogd', 'sshd',
             'NetworkManager', 'ModemManager', 'bluetoothd', 'cupsd',
@@ -66,41 +65,102 @@ class CoolFileEventMonitor(FileSystemEventHandler):
             'ld.so.cache', 'locale.alias', '.Xauthority'
         }
         
-        # User tools that we care about
-        self.user_processes = {
+        # Security-relevant user processes
+        self.security_processes = {
             'nano', 'vim', 'vi', 'gedit', 'code', 'subl', 'atom',
             'touch', 'mkdir', 'rm', 'cp', 'mv', 'python', 'python3',
             'bash', 'sh', 'zsh', 'konsole', 'gnome-terminal', 'xterm',
             'firefox', 'chrome', 'chromium', 'thunderbird', 'gedit',
-            'libreoffice', 'mousepad', 'pluma', 'leafpad'
+            'libreoffice', 'mousepad', 'pluma', 'leafpad',
+            # Security tools that might indicate suspicious activity
+            'nmap', 'nc', 'netcat', 'ncat', 'wireshark', 'tcpdump',
+            'john', 'hashcat', 'hydra', 'medusa', 'aircrack',
+            'metasploit', 'msfconsole', 'sqlmap', 'nikto', 'dirb',
+            'burpsuite', 'armitage', 'beef', 'ettercap', 'mitmproxy',
+            'arping', 'hping', 'nbtscan', 'smbclient', 'enum4linux',
+            'enumiax', 'ike-scan', 'nfsstat', 'onesixtyone', 'oscanner',
+            'sctp_scan', 'sctpscan', 'sfuzz', 'sgn', 'smbenum',
+            'smtp-user-enum', 'sslscan', 'sslyze', 'thc-ipv6',
+            'tnscmd10g', 'whatweb', 'acccheck', 'ace', 'adminenum',
+            'admsnmp', 'airflood', 'airsnare', 'airvent', 'alfsnort',
+            'amap', 'amun', 'arachni', 'arpon', 'arptools', 'asleap',
+            'automater', 'avet', 'backdoor-factory', 'bane', 'bed',
+            'beef-xss', 'bing-ip2hosts', 'binproxy', 'binscan', 'bkhive',
+            'blindelephant', 'bluesnarfer', 'braa', 'bruteforce-luks',
+            'btscanner', 'bulk_extractor', 'cain', 'caldera', 'cap3',
+            'catacomb', 'cdpsnarf', 'cisco-auditing-tool', 'cisco-global-exploiter',
+            'cisco-ocs', 'cisco-torch', 'cisco-snmp-enum', 'climber',
+            'cmed', 'cmospwd', 'cmseek', 'coalfire', 'cocoapods-deintegrate',
+            'conglomerate', 'cookie-cadger', 'copy-router-config', 'cowpatty',
+            'crackle', 'creddump', 'cupp', 'cymothoa', 'darkd0rk3r',
+            'davtest', 'dbd', 'deblaze', 'dhcpig', 'dhcp-starvation',
+            'dhcpoptinj', 'dirb', 'dirbuster', 'dmitry', 'dnmap',
+            'dns2geoip', 'dnsdict', 'dnsenum', 'dnsmap', 'dnsrecon',
+            'dnstracer', 'dnswalk', 'dotdotpwn', 'driftnet', 'dsss',
+            'eapmd5pass', 'enum4linux', 'enumiax', 'fierce', 'firewalk',
+            'fragroute', 'fragrouter', 'freeradius-wpe', 'giskismet',
+            'gobuster', 'golismero', 'goofile', 'gpredict', 'groke',
+            'grr', 'gwcheck', 'hamster-sidejack', 'hash-identifier',
+            'hashcat', 'hashid', 'hexorbase', 'highlight', 'hping3',
+            'httrack', 'intrace', 'ismtp', 'jdwp-shellifier', 'jigsaw',
+            'joomscan', 'jsql-injection', 'kalibrate-rtl', 'kismet',
+            'knock', 'laudanum', 'legion', 'lbd', 'lcrypt', 'lemon',
+            'lynis', 'macchanger', 'maltego', 'maskprocessor', 'masscan',
+            'medusa', 'mimikatz', 'miranda', 'mitm6', 'mitmproxy',
+            'nab', 'nbtscan', 'ncat', 'ncrack', 'ndiff', 'nessus',
+            'netdiscover', 'netmask', 'netsniff-ng', 'netstat', 'nikto',
+            'nmap', 'ntop', 'ohrwurm', 'onesixtyone', 'openvas',
+            'oscanner', 'osrframework', 'p0f', 'padbuster', 'parsero',
+            'patator', 'pcapfix', 'pdf-parser', 'pdfid', 'pdgmail',
+            'peepdf', 'pixiewps', 'powerfuzzer', 'powersploit',
+            'protos-sip', 'proxytunnel', 'pwnat', 'pykek', 'python-geoip',
+            'python-whois', 'qssl', 'radamsa', 'rainbowcrack',
+            'recon-ng', 'regeorg', 'reglookup', 'regripper', 'rsmangler',
+            'sakis3g', 'samdump2', 'sbd', 'sbrowse', 'scapy', 'scout',
+            'sctpscan', 'sfuzz', 'sgn', 'smbenum', 'smbmap', 'smtp-user-enum',
+            'sniffjoke', 'sparta', 'spiderfoot', 'sqlmap', 'sqlninja',
+            'sqlsus', 'sslcaudit', 'ssldump', 'sslh', 'sslscan',
+            'sslsniff', 'sslyze', 'stunnel4', 'swaks', 'thc-ipv6',
+            'thc-pptp-bruter', 'theharvester', 'tlssled', 'tnscmd10g',
+            'twofi', 'ucsniff', 'udptunnel', 'uniscan', 'urlcrazy',
+            'valgrind', 'vane', 'various', 'voiphopper', 'w3af',
+            'wafw00f', 'wcalc', 'weevely', 'wfuzz', 'whatweb',
+            'wifi-honey', 'wifite', 'wol-e', 'yersinia', 'zaproxy',
+            'zmap', 'zarp'
         }
         
-        # Start the cool display thread
-        self.display_thread = threading.Thread(target=self._cool_display, daemon=True)
+        # Sensitive files that trigger security alerts
+        self.sensitive_files = {
+            '/etc/passwd', '/etc/shadow', '/etc/sudoers', '/etc/ssh/',
+            '/root/.ssh/', '/home/', '/etc/cron', '/etc/at.allow',
+            '/etc/at.deny', '/etc/crontab', '/etc/cron.d/',
+            '/etc/cron.daily/', '/etc/cron.hourly/', '/etc/cron.monthly/',
+            '/etc/cron.weekly/', '/etc/passwd-', '/etc/shadow-',
+            '/etc/group', '/etc/group-', '/etc/gshadow', '/etc/gshadow-',
+            '/etc/hosts', '/etc/resolv.conf', '/etc/network/', '/var/log/',
+            '/root/.bash_history', '/root/.zsh_history', '/root/.viminfo',
+            '/home/*/.bash_history', '/home/*/.zsh_history', '/home/*/.viminfo'
+        }
+        
+        # Start the smart display thread
+        self.display_thread = threading.Thread(target=self._smart_display, daemon=True)
         self.display_thread.start()
         
-    def _cool_display(self):
-        """Cool real-time display of system vs user activity."""
-        import sys
+    def _smart_display(self):
+        """Smart security-focused display with discrete system logging."""
         last_display = 0
         while self.running:
-            time.sleep(2)  # Update every 2 seconds
+            time.sleep(1)  # Update every second
             
-            # Only display if we have recent activity
             current_time = time.time()
-            if current_time - last_display > 5:  # Display every 5 seconds max
-                system_recent = [e for e in self.system_activity if current_time - e.get('time', 0) < 10]
-                user_recent = [e for e in self.user_activity if current_time - e.get('time', 0) < 10]
-                
-                if system_recent or user_recent:
-                    system_count = len(system_recent)
-                    user_count = len(user_recent)
-                    status_line = (
-                        f"\r[🛡️] C:{self.stats['created']} M:{self.stats['modified']} D:{self.stats['deleted']} | "
-                        f"🤖:{system_count} 👤:{user_count}"
-                    )
-                    print(status_line, end="", flush=True)
-                    last_display = current_time
+            if current_time - last_display > 3:  # Update every 3 seconds
+                # Show only security statistics, not individual system events
+                status_line = (
+                    f"\r[🛡️] Security Events: {self.security_events} | "
+                    f"System Activity: {self.system_events} (logged discretely)"
+                )
+                print(status_line, end="", flush=True)
+                last_display = current_time
     
     def _get_process_info(self) -> Dict:
         """Get detailed process information."""
@@ -128,29 +188,42 @@ class CoolFileEventMonitor(FileSystemEventHandler):
                 return {"pid": "unknown", "name": "unknown", "username": "unknown", "cmdline": "unknown"}
     
     def _classify_process(self, process_info: Dict) -> str:
-        """Classify process as system, user, or neutral."""
+        """Classify process as system, security, or user."""
         name = process_info.get('name', '').lower()
         username = process_info.get('username', '').lower()
         
+        # Check security tools
+        if any(sec_tool in name for sec_tool in self.security_processes):
+            return 'security'
+            
         # Check system processes
         if any(sys_proc in name for sys_proc in self.system_processes):
             return 'system'
             
-        # Check user processes
-        if any(user_proc in name for user_proc in self.user_processes):
-            return 'user'
-            
-        # Root processes are usually system unless they're user tools
+        # Root processes - if they're security tools, they're security; otherwise system
         if username == 'root':
-            if any(user_tool in name for user_tool in ['nano', 'vim', 'python', 'bash', 'touch', 'mkdir']):
-                return 'user'
+            if any(sec_tool in name for sec_tool in self.security_processes):
+                return 'security'
             return 'system'
             
-        # User processes (non-root users)
+        # Regular user processes
         if username not in ['root', 'systemd-network', 'systemd-resolve', 'messagebus']:
             return 'user'
             
-        return 'neutral'
+        return 'system'
+    
+    def _is_sensitive_file(self, file_path: str) -> bool:
+        """Check if file is in sensitive locations."""
+        for sensitive_path in self.sensitive_files:
+            if sensitive_path.endswith('/'):
+                # Directory check
+                if file_path.startswith(sensitive_path):
+                    return True
+            else:
+                # File check
+                if file_path == sensitive_path:
+                    return True
+        return False
     
     def _should_ignore_file(self, file_path: str) -> bool:
         """Check if file should be completely ignored."""
@@ -160,79 +233,108 @@ class CoolFileEventMonitor(FileSystemEventHandler):
             '.dbus', '.gvfs', '.recently-used', '.thumbnails',
             '.cache', '__pycache__', '.tmp', '.swp', '~',
             '.so', '.o', '.pyc', '.class', '.lock', '.pid',
-            '/proc/', '/sys/', '/dev/'
+            '/proc/', '/sys/', '/dev/', '.log.1', '.log.2', '.gz',
+            'core.', 'swapfile', '.vdi', '.vmdk', '.iso'
         ]
         
         return any(pattern in file_path for pattern in system_ignore_patterns)
     
-    def _is_user_relevant_file(self, file_path: str) -> bool:
-        """Check if file is relevant to user monitoring."""
-        # Focus on user directories and common user file locations
+    def _is_security_relevant_file(self, file_path: str) -> bool:
+        """Check if file is security-relevant (sensitive or user-accessible)."""
+        # Sensitive files always trigger security alerts
+        if self._is_sensitive_file(file_path):
+            return True
+            
+        # User-accessible files in home or tmp directories
         user_paths = ['/home/', '/tmp/', '/var/tmp/']
         return any(path in file_path for path in user_paths)
     
-    def _log_system_activity(self, event_type: str, file_path: str, process_info: Dict):
-        """Log system activity without alerting."""
-        activity = {
+    def _log_security_event(self, event_type: str, file_path: str, process_info: Dict):
+        """Log and alert security events."""
+        event = {
+            'time': time.time(),
+            'type': event_type,
+            'file': file_path,
+            'process': process_info.get('name', 'unknown'),
+            'user': process_info.get('username', 'unknown'),
+            'pid': process_info.get('pid', 'unknown')
+        }
+        self.security_queue.append(event)
+        self.security_events += 1
+        
+        # Display security event with emphasis
+        file_name = Path(file_path).name
+        emoji_map = {'created': '🆕', 'modified': '✏️', 'deleted': '🗑️', 'moved': '➡️', 'accessed': '👁️'}
+        emoji = emoji_map.get(event_type.lower(), '🚨')
+        
+        print(f"\n{emoji} [SECURITY] {process_info.get('username', 'unknown')} {event_type} '{file_name}' ⚠️")
+    
+    def _log_system_event(self, event_type: str, file_path: str, process_info: Dict):
+        """Log system events discretely without alerts."""
+        event = {
             'time': time.time(),
             'type': event_type,
             'file': file_path,
             'process': process_info.get('name', 'unknown'),
             'pid': process_info.get('pid', 'unknown')
         }
-        self.system_activity.append(activity)
-    
-    def _log_user_activity(self, event_type: str, file_path: str, process_info: Dict):
-        """Log and alert user activity."""
-        activity = {
-            'time': time.time(),
-            'type': event_type,
-            'file': file_path,
-            'process': process_info.get('name', 'unknown'),
-            'user': process_info.get('username', 'unknown')
-        }
-        self.user_activity.append(activity)
+        self.system_queue.append(event)
+        self.system_events += 1
         
-        # Cool user activity display
-        file_name = Path(file_path).name
-        emoji_map = {'created': '🆕', 'modified': '✏️', 'deleted': '🗑️', 'moved': '➡️', 'accessed': '👁️'}
-        emoji = emoji_map.get(event_type.lower(), '📁')
-        
-        print(f"\n[{emoji} USER] {process_info.get('username', 'unknown')} {event_type} '{file_name}'")
+        # Show discrete system activity (minimal output)
+        if self.system_events % 10 == 0:  # Every 10th system event
+            print(f"   [SYS] System activity count: {self.system_events}", end="\r", flush=True)
     
-    def _send_user_alert(self, event_type: str, file_path: str, process_info: Dict):
-        """Send alert for user-initiated file operations."""
+    def _send_security_alert(self, event_type: str, file_path: str, process_info: Dict):
+        """Send security alerts for critical events."""
         timestamp = datetime.now()
         username = process_info.get('username', 'unknown')
         process_name = process_info.get('name', 'unknown')
         
-        # Cool formatted message
+        # Determine security level
+        is_sensitive = self._is_sensitive_file(file_path)
+        is_security_tool = self._classify_process(process_info) == 'security'
+        
+        security_level = "CRITICAL" if is_sensitive else "HIGH"
+        emoji = "🚨🚨🚨" if is_sensitive else "⚠️⚠️⚠️"
+        
+        # System notification for immediate attention
+        try:
+            title = f"{emoji} {security_level} SECURITY ALERT"
+            message = f"User: {username}\nAction: {event_type.upper()}\nFile: {Path(file_path).name}\nProcess: {process_name}"
+            subprocess.run(['notify-send', '-u', 'critical', title, message], 
+                          timeout=3, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+        except:
+            pass
+        
+        # Detailed email alert
         message = (
-            f"🔐 PrivAware Security Alert 🔐\n"
-            f"{'='*40}\n"
-            f"🚨 EVENT: {event_type.upper()} 🚨\n"
-            f"👤 User: {username}\n"
-            f"📅 Date: {timestamp.strftime('%Y-%m-%d')}\n"
-            f"⏰ Time: {timestamp.strftime('%H:%M:%S')}\n"
-            f"📁 File: {file_path}\n"
-            f"⚙️  Process: {process_name} (PID: {process_info.get('pid', 'unknown')})\n"
-            f"{'='*40}\n"
-            f"🛡️  Monitored by PrivAware - Your Linux Security Companion"
+            f"🔐 PRIVAWARE {security_level} SECURITY ALERT 🔐\n"
+            f"{'='*60}\n"
+            f"🚨 EVENT TYPE: {event_type.upper()}\n"
+            f"👤 USER: {username}\n"
+            f"📅 DATE: {timestamp.strftime('%Y-%m-%d')}\n"
+            f"⏰ TIME: {timestamp.strftime('%H:%M:%S')}\n"
+            f"📁 FILE: {file_path}\n"
+            f"⚙️  PROCESS: {process_name} (PID: {process_info.get('pid', 'unknown')})\n"
+            f"🔗 FILE NAME: {Path(file_path).name}\n"
+            f"🔐 SENSITIVE FILE: {'YES' if is_sensitive else 'NO'}\n"
+            f"🔍 SECURITY TOOL: {'YES' if is_security_tool else 'NO'}\n"
+            f"{'='*60}\n"
+            f"🛡️  Monitored by PrivAware - Advanced Security Platform\n"
+            f"⚠️  This indicates a potential security concern that requires attention."
         )
         
-        subject = f"PrivAware Alert: {username} {event_type} {Path(file_path).name}"
+        subject = f"{emoji} PrivAware {security_level} Alert: {username} {event_type} {Path(file_path).name}"
         
         try:
             self.alert_sender.send_alert(subject=subject, message=message)
-            print(f"📧 Alert sent for user {event_type} operation")
+            print(f"📧 Security alert sent: {security_level}")
         except Exception as e:
             print(f"❌ Alert failed: {e}")
     
     def _handle_event(self, event_type: str, file_path: str):
-        """Handle file events intelligently."""
-        # Update statistics
-        self.stats[event_type.lower()] = self.stats.get(event_type.lower(), 0) + 1
-        
+        """Handle file events with security intelligence."""
         # Ignore certain files completely
         if self._should_ignore_file(file_path):
             return
@@ -241,20 +343,35 @@ class CoolFileEventMonitor(FileSystemEventHandler):
         process_info = self._get_process_info()
         process_type = self._classify_process(process_info)
         
-        # Handle based on process type
-        if process_type == 'system':
-            # Log system activity silently
-            self._log_system_activity(event_type, file_path, process_info)
+        # Handle based on process type and file sensitivity
+        if process_type == 'security':
+            # Security tools always trigger alerts
+            self._log_security_event(event_type, file_path, process_info)
+            self._send_security_alert(event_type, file_path, process_info)
+        elif process_type == 'system':
+            # System processes - log discretely unless it's a sensitive file
+            if self._is_sensitive_file(file_path):
+                # Even system processes accessing sensitive files trigger alerts
+                self._log_security_event(event_type, file_path, process_info)
+                self._send_security_alert(event_type, file_path, process_info)
+            else:
+                # Regular system activity - log discretely
+                self._log_system_event(event_type, file_path, process_info)
         elif process_type == 'user':
-            # Log and alert user activity
-            self._log_user_activity(event_type, file_path, process_info)
-            # Only send alerts for CRUD operations in user-relevant locations
-            if self._is_user_relevant_file(file_path) and event_type in ['created', 'modified', 'deleted', 'moved']:
-                self._send_user_alert(event_type, file_path, process_info)
+            # User processes - check if file is security-relevant
+            if self._is_security_relevant_file(file_path):
+                self._log_security_event(event_type, file_path, process_info)
+                self._send_security_alert(event_type, file_path, process_info)
+            else:
+                # Non-security-relevant user activity - log discretely
+                self._log_system_event(event_type, file_path, process_info)
         else:
-            # Neutral processes - log if in user-relevant locations
-            if self._is_user_relevant_file(file_path):
-                self._log_user_activity(event_type, file_path, process_info)
+            # Other processes - be conservative
+            if self._is_sensitive_file(file_path):
+                self._log_security_event(event_type, file_path, process_info)
+                self._send_security_alert(event_type, file_path, process_info)
+            else:
+                self._log_system_event(event_type, file_path, process_info)
     
     def on_created(self, event):
         """Handle file creation events."""
@@ -269,12 +386,10 @@ class CoolFileEventMonitor(FileSystemEventHandler):
     def on_modified(self, event):
         """Handle file modification events."""
         if not event.is_directory:
-            # Only alert on significant modifications
             try:
                 if os.path.exists(event.src_path):
                     file_size = os.path.getsize(event.src_path)
-                    # Only process files that are not empty or are executables
-                    if file_size > 0 or event.src_path.endswith(('.exe', '.sh', '.py', '.pl', '.txt')):
+                    if file_size > 0 or event.src_path.endswith(('.exe', '.sh', '.py', '.pl', '.txt', '.conf', '.cfg')):
                         self._handle_event('modified', event.src_path)
             except Exception:
                 self._handle_event('modified', event.src_path)
@@ -287,13 +402,12 @@ class CoolFileEventMonitor(FileSystemEventHandler):
     def on_opened(self, event):
         """Handle file access events."""
         if not event.is_directory:
-            # Be very selective about access events
-            if self._is_user_relevant_file(event.src_path):
+            if self._is_security_relevant_file(event.src_path):
                 self._handle_event('accessed', event.src_path)
 
 
-class CoolFileWatcherManager:
-    """Manager class for cool file watching with awesome features."""
+class CoolFileWatcherManager:  # Keep original class name
+    """Manager class for smart security-focused file watching."""
     
     def __init__(self, watch_paths=None, ignore_patterns=None):
         self.watch_paths = watch_paths or ["/home", "/tmp"]
@@ -302,25 +416,30 @@ class CoolFileWatcherManager:
         self.event_handler = CoolFileEventMonitor(self.watch_paths, self.ignore_patterns)
         
     def start_monitoring(self):
-        """Start monitoring with cool startup sequence."""
-        print("🚀 Starting PrivAware File Monitor...")
-        print("🛡️  Initializing security monitoring...")
+        """Start security-focused monitoring."""
+        print("🚀 Starting PrivAware Smart Security Monitor...")
+        print("🛡️  Initializing intelligent security monitoring...")
         
-        # Cool startup animation
+        # Smart startup sequence
         startup_items = [
-            "📁 Setting up file watchers...",
-            "🤖 Configuring system filters...",
-            "📧 Initializing alert system...",
-            "📊 Preparing real-time analytics..."
+            "📁 Setting up security-focused file watchers...",
+            "🤖 Configuring security process filters...",
+            "🚨 Setting up security alert system...",
+            "📧 Initializing email alerts...",
+            "🔔 Initializing system notifications...",
+            "🔍 Preparing sensitive file monitoring...",
+            "📊 Starting discrete system logging..."
         ]
         
         for item in startup_items:
             print(f"   {item}")
-            time.sleep(0.2)
+            time.sleep(0.15)
         
-        print("\n✅ PrivAware File Monitor Active!")
-        print("💡 Tip: User CRUD operations will trigger alerts")
-        print("💡 Tip: System activity is monitored silently")
+        print("\n✅ PrivAware Smart Security Monitor Active!")
+        print("🚨 Security events: ALERT with notifications")
+        print("🔧 System events: Logged discretely (no popups)")
+        print("🔐 Sensitive file access: CRITICAL alerts")
+        print("🔍 Security tool usage: IMMEDIATE alerts")
         print("💡 Press Ctrl+C to stop monitoring\n")
         
         for path in self.watch_paths:
@@ -335,11 +454,12 @@ class CoolFileWatcherManager:
                 print(f"⚠️  Warning: Path does not exist: {path}")
         
         print(f"\n📈 Monitoring {len(self.observers)} locations")
-        print("🔄 Real-time monitoring started...\n")
+        print("🔄 Smart security monitoring started...\n")
+        print("🔒 Only security-relevant events will trigger alerts!")
         
     def stop_monitoring(self):
-        """Stop monitoring with cool shutdown."""
-        print("\n🛑 Stopping PrivAware File Monitor...")
+        """Stop monitoring with security summary."""
+        print("\n\n🛑 Stopping PrivAware Smart Security Monitor...")
         self.event_handler.running = False
         
         for observer in self.observers:
@@ -348,37 +468,42 @@ class CoolFileWatcherManager:
         for observer in self.observers:
             observer.join()
             
-        # Show final statistics
-        stats = self.event_handler.stats
-        print(f"\n📊 Final Statistics:")
-        print(f"   🆕 Created: {stats['created']}")
-        print(f"   ✏️  Modified: {stats['modified']}")
-        print(f"   🗑️  Deleted: {stats['deleted']}")
-        print(f"   ➡️  Moved: {stats['moved']}")
-        print(f"   👁️  Accessed: {stats['accessed']}")
+        # Show security summary
+        security_count = self.event_handler.security_events
+        system_count = self.event_handler.system_events
         
-        print("👋 PrivAware File Monitor stopped. Stay secure!")
+        print(f"\n📊 SECURITY MONITORING SUMMARY:")
+        print(f"   🚨 Security Events: {security_count}")
+        print(f"   🔧 System Events (logged): {system_count}")
+        print(f"   🛡️  Security Focus: {security_count > 0}")
+        
+        print("👋 PrivAware Smart Security Monitor stopped. Stay secure!")
 
 
 def main():
-    """Main entry point with cool demo mode."""
-    print("🎯 PrivAware File Monitor - Demo Mode")
-    print("=" * 50)
+    """Main entry point with security-focused demo mode."""
+    print("🎯 PrivAware Smart Security Monitor - Demo Mode")
+    print("=" * 60)
+    print("🔒 FOCUS: Security-relevant events only")
+    print("🔔 ALERTS: Security events only (no system noise)")
+    print("📝 LOGS: System activity (discrete, no popups)")
+    print("=" * 60)
     
-    # Default user-focused monitoring
+    # Default security-focused monitoring
     watch_paths = [
-        "/home",  # User home directories
-        "/tmp"    # Temporary files
+        "/home",  # User home directories (security focus)
+        "/tmp"    # Temporary files (potential attack vectors)
     ]
     
-    ignore_patterns = []  # Let the intelligent system handle filtering
-    
-    # Create and start the cool file watcher
-    watcher_manager = CoolFileWatcherManager(watch_paths, ignore_patterns)
+    # Create and start the smart security watcher
+    watcher_manager = CoolFileWatcherManager(watch_paths, [])
     
     try:
         watcher_manager.start_monitoring()
-        print("🔥 Monitoring active! Try creating/modifying files in your home directory...")
+        print("\n🔥 SMART SECURITY MONITORING ACTIVE!")
+        print("💡 Only security events trigger alerts")
+        print("💡 System activity logged discretely")
+        print("💡 Try creating/modifying sensitive files to test...")
         
         # Keep running
         while True:

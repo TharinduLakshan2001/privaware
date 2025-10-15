@@ -20,6 +20,7 @@ from core.log_monitor import LogMonitor
 from core.filewatch import FileWatcher
 from core.servicecheck import ServiceChecker
 from core.alerts import send_test_alert
+from core.banner import display_banner
 
 # Import the new real-time file watcher with better error handling
 try:
@@ -298,29 +299,107 @@ def run_realtime_file_watch():
         watcher_manager.stop_monitoring()
 
 def run_service_check():
-    """Check status of critical services."""
+    """Check status of critical services with advanced monitoring."""
     from rich.console import Console
     from rich.table import Table
+    from rich.panel import Panel
+    from rich.progress import Progress
     
     console = Console()
-    service_checker = ServiceChecker()
-    services = ["sshd", "dnsmasq", "nginx"]  # Default services
     
-    console.print("[bold blue]Checking service status...[/bold blue]")
-    results = service_checker.check_services(services)
+    console.print("[bold blue]🔍 Checking service status...[/bold blue]")
     
-    table = Table(title="[bold blue]Service Status[/bold blue]")
-    table.add_column("Service", style="cyan")
-    table.add_column("Status", style="green")
-    table.add_column("Details", style="yellow")
-    
-    for service, result in results.items():
-        status = result.get('status', 'UNKNOWN')
-        details = result.get('message', 'No details')
-        status_color = "green" if status == "RUNNING" else "red"
-        table.add_row(service, f"[{status_color}]{status}[/{status_color}]", details)
-    
-    console.print(table)
+    # Try to import the new advanced service checker
+    try:
+        from core.servicecheck import AdvancedServiceMonitor
+        service_checker = AdvancedServiceMonitor()  # Use the new advanced checker
+        results = service_checker.check_all_services()
+        
+        # Get health score
+        health = service_checker.get_health_score(results)
+        
+        # Display health score
+        health_color = "red" if health['critical_score'] < 50 else "yellow" if health['critical_score'] < 80 else "green"
+        console.print(Panel(
+            f"[bold]System Health Score: [green]{health['overall_score']}%[/green] | "
+            f"Critical: [{health_color}]{health['critical_score']}%[/bold]",
+            title="Health Status"
+        ))
+        
+        # Categorize services for better display
+        categorized = service_checker.categorize_services(results)
+        
+        # Create tables for each category
+        for category, services in categorized.items():
+            if services:  # Only show categories that have services
+                table = Table(title=f"[bold blue]{category.upper()} SERVICES[/bold blue]")
+                table.add_column("Service", style="cyan")
+                table.add_column("Status", style="green")
+                table.add_column("Details", style="yellow")
+                
+                for service, status in services.items():
+                    status_icon = "🟢" if status['status'] == 'RUNNING' else "🔴"
+                    status_color = "green" if status['status'] == 'RUNNING' else "red"
+                    
+                    details = status['message']
+                    if status['uptime'] > 0:
+                        details += f" | Uptime: {status['uptime']:.0f}s"
+                    if status['processes']:
+                        details += f" | Processes: {len(status['processes'])}"
+                    
+                    table.add_row(
+                        service, 
+                        f"[{status_color}]{status_icon} {status['status']}[/{status_color}]", 
+                        details
+                    )
+                
+                console.print(table)
+        
+        # Show critical services summary
+        critical_table = Table(title="[bold red]🚨 CRITICAL SERVICES[/bold red]")
+        critical_table.add_column("Service", style="cyan")
+        critical_table.add_column("Status", style="green")
+        critical_table.add_column("Uptime", style="yellow")
+        
+        for service in service_checker.critical_services:
+            if service in results:
+                status = results[service]
+                status_icon = "🟢" if status['status'] == 'RUNNING' else "🔴"
+                uptime = f"{status['uptime']:.0f}s" if status['uptime'] > 0 else "N/A"
+                critical_table.add_row(
+                    service,
+                    f"[red]{status_icon} {status['status']}[/red]",
+                    uptime
+                )
+        
+        console.print(critical_table)
+        
+        # Show system health report
+        console.print(Panel(
+            service_checker.get_system_health_report(),
+            title="📋 System Health Report",
+            expand=False
+        ))
+        
+    except ImportError:
+        # Fallback to the original service checker
+        service_checker = ServiceChecker()
+        services = ["sshd", "dnsmasq", "nginx"]  # Default services
+        
+        results = service_checker.check_services(services)
+        
+        table = Table(title="[bold blue]Service Status[/bold blue]")
+        table.add_column("Service", style="cyan")
+        table.add_column("Status", style="green")
+        table.add_column("Details", style="yellow")
+        
+        for service, result in results.items():
+            status = result.get('status', 'UNKNOWN')
+            details = result.get('message', 'No details')
+            status_color = "green" if status == "RUNNING" else "red"
+            table.add_row(service, f"[{status_color}]{status}[/{status_color}]", details)
+        
+        console.print(table)
 
 def run_test_alert():
     """Send a test alert email."""
@@ -335,6 +414,9 @@ def run_test_alert():
         console.print(f"[red]❌ Failed to send test alert: {e}[/red]")
 
 def main():
+    # Display banner first
+    display_banner()
+    
     parser = argparse.ArgumentParser(
         description="PrivAware CLI - Linux Privacy & Security Toolkit",
         formatter_class=argparse.RawTextHelpFormatter,
