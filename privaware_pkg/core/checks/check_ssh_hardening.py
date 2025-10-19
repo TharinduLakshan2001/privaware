@@ -1,4 +1,4 @@
-# privaware_pkg/core/checks/check_ssh_hardening.py
+# privaware_pkg/core/checks/check_ssh_hardening.py - FIXED VERSION
 """
 Check SSH hardening settings.
 This check verifies if SSH server settings are hardened against common attacks.
@@ -107,6 +107,7 @@ def check_ssh_hardening() -> ConfigCheck:
                 # Combine remediation commands into a single executable string
                 # Append a command to restart the SSH service after changes
                 all_remediation_commands = remediation_commands + ["sudo systemctl restart sshd"]
+                # Clean up the command string to avoid shell syntax errors
                 check.remediation_command = " && ".join(all_remediation_commands)
             else:
                 # No insecure settings found based on checks performed

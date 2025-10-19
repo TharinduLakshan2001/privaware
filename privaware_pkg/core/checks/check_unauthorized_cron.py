@@ -1,4 +1,4 @@
-# privaware_pkg/core/checks/check_unauthorized_cron.py
+# privaware_pkg/core/checks/check_unauthorized_cron.py - FIXED VERSION
 """
 Check for unauthorized cron/systemd timers (suspicious persistent tasks).
 This check looks for cron jobs or systemd timers that might indicate malicious persistence.
@@ -149,15 +149,10 @@ def check_unauthorized_cron() -> ConfigCheck:
         # Report the number of issues found and list the first few for details
         check.details = f"Found {len(issues_found)} suspicious cron/systemd entries: {', '.join(issues_found[:3])}..." # Show first 3
         check.remediation_needed = True
-        # Provide a general remediation command to investigate further.
+        # Provide a clean remediation command to investigate further.
         # Specific removal commands depend on the exact entry found.
         check.remediation_command = (
-            "Review suspicious cron jobs and systemd timers listed in details. "
-            "Remove or disable unauthorized entries. "
-            "Commands to investigate: "
-            "'crontab -l' (current user), 'sudo crontab -l -u <user>' (specific user), "
-            "'systemctl list-timers --all', 'systemctl cat <timer-name>.timer', "
-            "'ls -l /etc/cron.*', 'cat /etc/crontab'."
+            "sudo ls -l /etc/cron.*"
         )
     else:
         # No suspicious entries found based on the indicators checked

@@ -35,6 +35,9 @@ except ImportError as e:
         CoolFileWatcherManager = None
         print("Warning: Real-time file watcher not available")
 
+# In privaware.py, add this import with other imports:
+from core.enhanced_dashboard import run_enhanced_dashboard
+
 def check_and_install_requirements():
     required = ["psutil", "watchdog", "rich", "python-dotenv"]
     for pkg in required:
@@ -504,7 +507,9 @@ Monitoring:
     
     if args.monitor or args.realtime_monitor:
         if args.realtime_monitor:
-            run_monitor(realtime=True, interval=args.monitor_interval)
+            # Then in the main() function, replace the existing realtime-monitor handling:
+            # Find where you handle args.realtime_monitor and replace it with:
+            run_enhanced_dashboard()
         else:
             run_monitor()
     

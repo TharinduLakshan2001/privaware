@@ -1,4 +1,4 @@
-# privaware_pkg/core/checks/check_swap_encryption.py
+# privaware_pkg/core/checks/check_swap_encryption.py - FIXED VERSION
 """
 Check swap encryption or encrypted swapfile.
 This check verifies if the system's swap space (partition or file) is encrypted.
@@ -47,15 +47,10 @@ def check_swap_encryption() -> ConfigCheck:
             check.status = "FAIL"
             check.details = "Swap not encrypted"
             check.remediation_needed = True
-            # Provide a remediation command. Note: Encrypting swap often requires
-            # system configuration changes or re-installation, so the message reflects that.
+            # Provide a simple remediation command
             check.remediation_command = (
-                "To encrypt swap, consider reconfiguring it: "
-                "1. Turn off swap: sudo swapoff -a. "
-                "2. Encrypt the swap partition/file (requires LUKS setup). "
-                "3. Update /etc/fstab and /etc/crypttab. "
-                "4. Re-enable swap: sudo swapon -a. "
-                "Alternatively, ensure the system uses suspend-to-RAM only, not hibernate."
+                "sudo swapoff -a && "
+                "echo 'Configure encrypted swap in /etc/fstab and /etc/crypttab'"
             )
     elif code == 0 and not out:
         # Command succeeded but no output means no swap is configured/active

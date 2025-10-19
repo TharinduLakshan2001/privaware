@@ -329,6 +329,10 @@ def run_config_check(snapshot_dir="~/.privaware/snapshots", interval=30, once=Fa
                 fixed_checks = checker.auto_fix_issues(failed_checks)
                 if fixed_checks:
                     console.print(f"[green]✅ Attempted to fix {len(fixed_checks)} issues[/green]")
+                
+                # Re-run checks to get updated status after fixes
+                console.print(f"[yellow]🔄 Re-running checks to verify fixes...[/yellow]")
+                checks = checker.run_all_checks()  # This will update the checks with new status
 
         # Compare with previous
         previous = checker.load_latest_snapshot()

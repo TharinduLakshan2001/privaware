@@ -15,6 +15,7 @@ privaware_pkg/core/banner.py
 privaware_pkg/core/config_checker.py
 privaware_pkg/core/config_models.py
 privaware_pkg/core/device_connection_monitor.py
+privaware_pkg/core/enhanced_dashboard.py
 privaware_pkg/core/file_realtime_watch.py
 privaware_pkg/core/filewatch.py
 privaware_pkg/core/log_monitor.py

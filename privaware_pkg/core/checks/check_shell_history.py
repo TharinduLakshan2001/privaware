@@ -1,4 +1,4 @@
-# privaware_pkg/core/checks/check_shell_history.py
+# privaware_pkg/core/checks/check_shell_history.py - FIXED VERSION
 """
 Check shell history protections.
 This check verifies if shell history settings are configured to protect user privacy.
@@ -103,14 +103,13 @@ def check_shell_history() -> ConfigCheck:
             # with insecure permissions.
             # For now, we can't check the file itself, but we can note HISTFILE is set.
             # Let's not flag this as an issue, as the file simply hasn't been created yet.
-            # The check focuses on existing configuration/problems.
             pass # Silently continue.
     else:
         # HISTFILE is not set in the environment.
         # The shell will likely use a default location (e.g., ~/.bash_history).
         # We cannot determine the file path or its permissions without making assumptions.
         # This is a limitation of checking via environment variables only.
-        # The check is focused on explicit configurations.
+        # The check focuses on explicit configurations.
         # Not having HISTFILE set is common default behavior.
         # Let's not flag this.
         pass # Silently continue.
@@ -125,12 +124,12 @@ def check_shell_history() -> ConfigCheck:
         check.status = "WARN"
         check.details = "; ".join(issues_found[:3]) # Show first 3 issues to keep details concise
         check.remediation_needed = True
-        # Provide remediation commands to fix the issues.
+        # Provide clean remediation commands to fix the issues.
         # The primary fix is setting HISTSIZE=0.
         # Fixing file permissions requires knowing the exact file path.
         remediation_commands = []
         if "HISTSIZE=" in check.details and "should be 0" in check.details:
-            remediation_commands.append("Add 'export HISTSIZE=0' to your shell's rc file (e.g., ~/.bashrc, ~/.zshrc)")
+            remediation_commands.append("echo 'export HISTSIZE=0' >> ~/.bashrc")
         
         # If the issue is about file permissions, suggest a generic chmod command.
         # This requires knowing the file, which we have from HISTFILE.
@@ -139,18 +138,15 @@ def check_shell_history() -> ConfigCheck:
             
         # If HISTSIZE is not set, suggest setting it.
         if "HISTSIZE is not set" in check.details:
-             remediation_commands.append("Add 'export HISTSIZE=0' to your shell's rc file (e.g., ~/.bashrc, ~/.zshrc)")
+             remediation_commands.append("echo 'export HISTSIZE=0' >> ~/.bashrc")
 
         if remediation_commands:
             check.remediation_command = " && ".join(remediation_commands)
         else:
             # Fallback remediation if specific commands weren't determined
             check.remediation_command = (
-                "To disable shell history for privacy: "
-                "Add 'export HISTSIZE=0' to your shell's configuration file "
-                "(e.g., ~/.bashrc, ~/.zshrc). "
-                "To fix history file permissions: "
-                "Use 'chmod 600 <history_file_path>'."
+                "echo 'export HISTSIZE=0' >> ~/.bashrc && "
+                "echo 'export HISTFILESIZE=0' >> ~/.bashrc"
             )
     else:
         # No issues found with shell history configuration based on checks performed

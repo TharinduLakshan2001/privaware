@@ -1,4 +1,4 @@
-# privaware_pkg/core/checks/check_mac_randomization.py
+# privaware_pkg/core/checks/check_mac_randomization.py - FIXED VERSION
 """
 Check Wi-Fi MAC address randomization.
 This check verifies if MAC address randomization is enabled for Wi-Fi connections.
@@ -101,15 +101,15 @@ def check_mac_randomization() -> ConfigCheck:
                          check.details = "MAC randomization confirmed active via runtime check (nmcli)."
                          # Append info about config files checked for context
                          if config_files_checked:
-                             check.details += f" Config files checked: {', '.join(config_files_checked[:2])}..."
+                             check.details += f" Config files checked: {', '.join(config_files[:2])}..."
                      elif value == 'no':
                          check.details = "MAC randomization confirmed inactive via runtime check (nmcli)."
                          if config_files_checked:
-                             check.details += f" Config files checked: {', '.join(config_files_checked[:2])}..."
+                             check.details += f" Config files checked: {', '.join(config_files[:2])}..."
                      else:
                          check.details = f"MAC randomization status unclear from nmcli: {value}"
                          if config_files_checked:
-                             check.details += f" Config files checked: {', '.join(config_files_checked[:2])}..."
+                             check.details += f" Config files checked: {', '.join(config_files[:2])}..."
                      break # Processed the relevant line
         else:
             # nmcli command failed, add info to details
@@ -145,11 +145,11 @@ def check_mac_randomization() -> ConfigCheck:
 
         # Mark for remediation as it's a recommended privacy setting.
         check.remediation_needed = True
-        # Provide a remediation command to enable it via a new configuration file.
-        # This command creates a new conf.d file, which is the recommended way to add settings.
+        # Provide a clean remediation command
         check.remediation_command = (
-            "echo -e '[device-mac-randomization]\\nwifi.scan-rand-mac-address=yes\\n\\n[connection-mac-randomization]\\nwifi.cloned-mac-address=random' "
-            "| sudo tee /etc/NetworkManager/conf.d/99-privaware-mac-randomization.conf && "
+            "sudo mkdir -p /etc/NetworkManager/conf.d && "
+            "echo -e '[device]\\nwifi.scan-rand-mac-address=yes\\n\\n[connection]\\nwifi.cloned-mac-address=random' | "
+            "sudo tee /etc/NetworkManager/conf.d/99-mac-randomization.conf && "
             "sudo systemctl reload NetworkManager"
         )
 

@@ -1,4 +1,4 @@
-# privaware_pkg/core/checks/check_folder_file_permissions.py
+# privaware_pkg/core/checks/check_folder_file_permissions.py - FIXED VERSION
 """
 Check folder and file permissions.
 This check verifies if sensitive system folders/files have appropriate, secure permissions.
@@ -80,7 +80,7 @@ def check_folder_file_permissions() -> ConfigCheck:
                         if mode & 0o002: # Check if "others" have write permission
                             is_problematic = True
                             reason = f"Directory is world-writable (mode {oct(mode)})"
-                        # Owner: rwx, Group: rx, Others: r (754) might also be acceptable
+                        # Owner: rwx, Group: rx, Others: r (755) might also be acceptable
                         # depending on policy, but 755 is standard.
                         # A stricter check could enforce 755 or 750.
                         # For now, flagging world-write is a strong indicator.
@@ -157,17 +157,10 @@ def check_folder_file_permissions() -> ConfigCheck:
         check.status = "FAIL"
         check.details = f"Insecure permissions found on {len(issues_found)} path(s): {', '.join(issues_found[:3])}..." # Show first 3
         check.remediation_needed = True
-        # Provide a generic remediation command. Specific fixes depend on the path.
-        # This command suggests using chmod to fix permissions.
-        # Instruct the user to research correct permissions or use system tools.
-        # Example for a specific file: sudo chmod 644 /etc/passwd
-        # Example for a directory: sudo chmod 755 /etc
-        # Providing one generic example:
+        # Provide a proper remediation command with correct shell syntax
         check.remediation_command = (
-            "Use 'ls -l <path>' to see current permissions. "
-            "Use 'sudo chmod <correct_permissions> <path>' to fix. "
-            "Research correct permissions for each specific file/directory. "
-            "Example: sudo chmod 644 /etc/passwd"
+            "chmod 640 /etc/shadow && chmod 640 /etc/gshadow && "
+            "chmod 700 /root && chmod 644 /etc/passwd && chmod 644 /etc/group"
         )
     else:
         # All checked paths have acceptable permissions (based on our checks)

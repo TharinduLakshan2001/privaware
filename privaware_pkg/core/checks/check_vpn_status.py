@@ -1,4 +1,4 @@
-# privaware_pkg/core/checks/check_vpn_status.py
+# privaware_pkg/core/checks/check_vpn_status.py - FIXED VERSION
 """
 Check VPN interface & killswitch status.
 This check verifies if a VPN interface is active and potentially if a killswitch is configured.
@@ -61,11 +61,10 @@ def check_vpn_status() -> ConfigCheck:
             # Not having a VPN is a warning because it's a recommended privacy measure,
             # but it's not a direct system misconfiguration.
             check.remediation_needed = True
-            # Provide a generic remediation command suggesting connecting to a VPN.
+            # Provide a clean remediation command suggesting connecting to a VPN.
             # This is difficult to make specific as it depends on the VPN client/service used.
             check.remediation_command = (
-                "Connect to a trusted VPN service. "
-                "This action is typically performed through your VPN client application or by establishing a connection via OpenVPN/WireGuard configuration files."
+                "sudo apt install -y openvpn"
             )
     else:
         # Command failed (e.g., `ip` command not found, permission error)

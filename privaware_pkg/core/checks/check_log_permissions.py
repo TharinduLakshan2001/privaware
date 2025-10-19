@@ -1,4 +1,4 @@
-# privaware_pkg/core/checks/check_log_permissions.py
+# privaware_pkg/core/checks/check_log_permissions.py - FIXED VERSION
 """
 Check log file and directory permissions.
 This check verifies if system log files and directories have appropriate, secure permissions to prevent unauthorized access.
@@ -67,9 +67,7 @@ def check_log_permissions() -> ConfigCheck:
                     # for some systems, but it's a good security practice.
                     # Let's flag if "others" have write permission as critical.
                     # Let's also flag if "others" have read permission as a warning-level issue.
-                    # For this check, we'll flag world-write as FAIL, world-read as WARN.
-                    # However, the check status is binary (PASS/WARN/FAIL).
-                    # Let's prioritize flagging world-write as the main failure condition.
+                    # For this check, we'll flag world-write as the main failure condition.
                     
                     if mode & 0o002: # Check if "others" have write permission
                         is_problematic = True
@@ -137,16 +135,10 @@ def check_log_permissions() -> ConfigCheck:
             check.details = f"Permission issues found on {len(issues_found)} log path(s): {', '.join(issues_found[:3])}..." # Show first 3
 
         check.remediation_needed = True
-        # Provide a generic remediation command. Specific fixes depend on the path and issue.
-        # This command suggests using chmod to fix permissions.
-        # Instruct the user to research correct permissions or use system tools.
+        # Provide a clean remediation command without quotes or "Use:"
         check.remediation_command = (
-            "Use 'ls -l <path>' to see current permissions. "
-            "Use 'sudo chmod <correct_permissions> <path>' to fix. "
-            "Common secure permissions: "
-            "Directories: 755 (rwxr-xr-x) or 750 (rwxr-x---); "
-            "Files: 640 (rw-r-----) or 600 (rw-------). "
-            "Example: sudo chmod 640 /var/log/auth.log"
+            "chmod 750 /var/log && find /var/log -type f -exec chmod 640 {} \\; && "
+            "find /var/log -type d -exec chmod 750 {} \\;"
         )
     else:
         # All checked paths have acceptable permissions (based on our checks)

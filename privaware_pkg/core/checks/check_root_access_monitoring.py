@@ -1,4 +1,4 @@
-# privaware_pkg/core/checks/check_root_access_monitoring.py
+# privaware_pkg/core/checks/check_root_access_monitoring.py - FIXED VERSION
 """
 Check for root access monitoring and detection.
 This check verifies if systems are in place to monitor, alert on, or prevent unauthorized root access.
@@ -222,8 +222,8 @@ def check_root_access_monitoring() -> ConfigCheck:
             "Consider implementing auditd for detailed logging or fail2ban for intrusion prevention."
         )
         remediation_suggestions.append(
-            "Install auditd for comprehensive system call auditing: sudo apt install auditd && sudo systemctl enable auditd && sudo systemctl start auditd. "
-            "Or install fail2ban for intrusion prevention: sudo apt install fail2ban && sudo systemctl enable fail2ban && sudo systemctl start fail2ban."
+            "sudo apt install -y auditd && sudo systemctl enable auditd && sudo systemctl start auditd && "
+            "sudo apt install -y fail2ban && sudo systemctl enable fail2ban && sudo systemctl start fail2ban"
         )
 
 
@@ -243,14 +243,24 @@ def check_root_access_monitoring() -> ConfigCheck:
         check.details = f"Critical root access issues found ({len(issues_found)}). Details: {'; '.join(all_findings[:3])}..." # Show first 3 findings
         check.remediation_needed = True
         if remediation_suggestions:
-            check.remediation_command = " && ".join(remediation_suggestions[:3]) # Limit remediation commands shown
+            # Clean up remediation command to avoid syntax errors
+            clean_suggestions = []
+            for suggestion in remediation_suggestions:
+                # Remove any text that might cause shell syntax errors
+                clean_suggestions.append(suggestion.replace("Install:", "").replace(":", ""))
+            check.remediation_command = " && ".join(clean_suggestions[:3]) # Limit remediation commands shown
     elif warnings_found:
         # Warnings found (e.g., root password set, lack of monitoring tools)
         check.status = "WARN"
         check.details = f"Root access warnings/concerns ({len(warnings_found)}). Details: {'; '.join(all_findings[:3])}..."
         check.remediation_needed = True
         if remediation_suggestions:
-            check.remediation_command = " && ".join(remediation_suggestions[:3])
+            # Clean up remediation command to avoid syntax errors
+            clean_suggestions = []
+            for suggestion in remediation_suggestions:
+                # Remove any text that might cause shell syntax errors
+                clean_suggestions.append(suggestion.replace("Install:", "").replace(":", ""))
+            check.remediation_command = " && ".join(clean_suggestions[:3])
     elif info_found:
         # Only informational findings (e.g., monitoring tools active, root password locked)
         check.status = "PASS"
